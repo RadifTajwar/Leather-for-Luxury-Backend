@@ -15,6 +15,7 @@ export type IUSer = {
   verificationToken?: string;
   resetToken?: string;
   resetTokenExpiresAt?: Date;
+  resetAttempts?: number;
 
   // Mongoose-specific methods
   isModified(path: string): boolean;

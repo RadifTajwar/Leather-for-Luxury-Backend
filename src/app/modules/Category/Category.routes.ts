@@ -11,7 +11,7 @@ const router = express.Router();
 router.post(
   "/create-category",
   validateRequest(CategoryValidation.CategoryZodSchema),
-  // auth(ENUM_USER_ROLE.ADMIN, ENUM_USER_ROLE.USER),
+  auth(ENUM_USER_ROLE.ADMIN),
   CategoryController.createCategory
 );
 router.get("/:slug", CategoryController.getSingleCategoryBySlug);
@@ -21,12 +21,12 @@ router.get("/Parent/:id", CategoryController.getParent);
 router.patch(
   "/update/:id",
   validateRequest(CategoryValidation.CategoryUpdateZodSchema),
-  // auth(ENUM_USER_ROLE.ADMIN),
+  auth(ENUM_USER_ROLE.ADMIN),
   CategoryController.updateCategoryById
 );
 router.delete(
   "/delete/:id",
-  // auth(ENUM_USER_ROLE.ADMIN),
+  auth(ENUM_USER_ROLE.ADMIN),
   CategoryController.deleteCategory
 );
 

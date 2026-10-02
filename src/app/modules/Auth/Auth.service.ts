@@ -46,6 +46,9 @@ const loginUser = async (payload: TLoginUser): Promise<ILoginUserResponse> => {
     config.jwt_refresh_expires_in as string
   );
 
+  // Loaded with +password for the comparison above; never send the hash back.
+  (user as any).password = undefined;
+
   return {
     user,
     accessToken,

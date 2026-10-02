@@ -6,6 +6,11 @@ import { UserService } from "./Users.service";
 import ApiError from "../../errors/ApiError";
 import config from "../../config";
 import { createToken } from "../../helpers/jwtHelpers";
+import { assertSelfOrAdmin } from "../../middlewares/auth";
+import pick from "../../shared/pick";
+
+/** The only fields a profile update may touch: never role, email or password. */
+const PROFILE_FIELDS = ["name", "phone", "shippingAddress", "location"];
 
 const createUser = catchAsync(async (req: Request, res: Response) => {
   const payload = req.body;
@@ -21,9 +26,8 @@ const createUser = catchAsync(async (req: Request, res: Response) => {
 export const verifyEmail = catchAsync(async (req: Request, res: Response) => {
   // Extract user ID from request parameters and update payload from request body
   const { code } = req.body;
-  // console.log(code, "code");
-  // Update the user profile using the service layer
-  const updatedUser = await UserService.verifyEmailService(code);
+  // Only the signed-in account's own code counts (auth() runs first).
+  const updatedUser = await UserService.verifyEmailService(code, req.user?.email);
 
   // If no user is found, throw an error
   if (!updatedUser) {
@@ -34,7 +38,12 @@ export const verifyEmail = catchAsync(async (req: Request, res: Response) => {
   // away. Without it the old token keeps saying "unverified" until it expires
   // and the prompt never goes away.
   const accessToken = createToken(
-    { email: updatedUser.email, role: updatedUser.role, isVerified: true },
+    {
+      id: String((updatedUser as any)._id ?? updatedUser.id),
+      email: updatedUser.email,
+      role: updatedUser.role,
+      isVerified: true,
+    },
     config.jwt_access_secret as string,
     config.jwt_access_expires_in as string
   );
@@ -105,6 +114,7 @@ export const getUserById = catchAsync(async (req: Request, res: Response) => {
   if (!user) {
     throw new ApiError(httpStatus.NOT_FOUND, "User not found");
   }
+  assertSelfOrAdmin(req.user, user.email);
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
@@ -114,6 +124,7 @@ export const getUserById = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const getUserByEmail = catchAsync(async (req: Request, res: Response) => {
+  assertSelfOrAdmin(req.user, req.params.email);
   const user = await UserService.getUserByEmail(req.params.email);
   if (!user) {
     throw new ApiError(httpStatus.NOT_FOUND, "User not found");
@@ -129,7 +140,13 @@ export const getUserByEmail = catchAsync(async (req: Request, res: Response) => 
 export const updateUSerProfile = catchAsync(
   async (req: Request, res: Response) => {
     const { id } = req.params; // Extract ID from request parameters
-    const updateData = req.body; // Extract update payload from request body
+
+    const target = await UserService.getUserById(id);
+    if (!target) {
+      throw new ApiError(httpStatus.NOT_FOUND, "User not found");
+    }
+    assertSelfOrAdmin(req.user, target.email);
+    const updateData = pick(req.body, PROFILE_FIELDS);
 
     // Perform the update operation
     const updatedCategory = await UserService.updateUSerProfile(id, updateData);

@@ -90,7 +90,7 @@ The environment variables can be found and modified in the `.env` file. They com
 ```bash
 NODE_ENV=development
 PORT=5000
-DATABASE_URL=mongodb+srv://auth-management:RdbAMWpEgfauaU3N@cluster0.xjdmb7o.mongodb.net/auth-menegemant?retryWrites=true&w=majority&appName=Cluster0
+DATABASE_URL=<your MongoDB connection string>
 
 
 BYCRYPT_SALT_ROUNDS=12

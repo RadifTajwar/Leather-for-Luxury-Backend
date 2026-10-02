@@ -4,9 +4,9 @@
  * Safe to re-run — orders that already have a number are skipped.
  */
 import mongoose from "mongoose";
-import config from "./src/app/config";
-import { Counter, ORDER_NUMBER_START } from "./src/app/modules/Oder/Counter.model";
-import { Order } from "./src/app/modules/Oder/Oder.model";
+import config from "../src/app/config";
+import { Counter, ORDER_NUMBER_START } from "../src/app/modules/Oder/Counter.model";
+import { Order } from "../src/app/modules/Oder/Oder.model";
 
 (async () => {
   await mongoose.connect(config.database_url as string);

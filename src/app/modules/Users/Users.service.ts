@@ -50,7 +50,9 @@ const createUSer = async (payload: IUSer): Promise<IUSer | null> => {
     );
   }
 
-  return result;
+  // Re-read: the created document still carries the password hash and the
+  // verification code, and this goes straight back to the caller.
+  return User.findById(result._id);
 };
 
 /**
@@ -70,15 +72,26 @@ const resendVerification = async (
   return { sent };
 };
 
-const verifyEmailService = async (code: string): Promise<IUSer | null> => {
-  // console.log("Received code:", code);
-  // Find the user with a matching token that hasn't expired
-  const user = await User.findOne({
-    verificationToken: code,
-  });
+/**
+ * Verify the signed-in user's own address. The code is matched against that
+ * one account: matched globally, any 6-digit guess could land on a stranger.
+ */
+const verifyEmailService = async (
+  code: string,
+  email: string
+): Promise<IUSer | null> => {
+  // Mongoose drops undefined filter values, so a missing code or email would
+  // turn this into findOne({}) and "verify" the first user in the collection.
+  if (!code || !email) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Enter the 6-digit code from your email");
+  }
+  const user = await User.findOne({ email, verificationToken: String(code) });
 
   if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, "User not found");
+    throw new ApiError(
+      httpStatus.NOT_FOUND,
+      "That code is not valid. Check the most recent email we sent you."
+    );
   }
 
   // Update the user's verification status and clear token fields
@@ -115,6 +128,7 @@ const requestPasswordReset = async (email: string): Promise<{ sent: boolean }> =
 
   user.resetToken = sixDigitCode();
   user.resetTokenExpiresAt = new Date(Date.now() + RESET_CODE_TTL_MINUTES * 60_000);
+  user.resetAttempts = 0;
   await user.save();
 
   const sent = await sendPasswordResetEmail(
@@ -128,13 +142,27 @@ const requestPasswordReset = async (email: string): Promise<{ sent: boolean }> =
   return { sent };
 };
 
+/** Guesses allowed per reset code; requesting a new code starts over. */
+const MAX_RESET_ATTEMPTS = 5;
+
 /** Finish a reset. The code is single-use and only valid before it expires. */
 const resetPassword = async (
   email: string,
   code: string,
   newPassword: string
 ): Promise<void> => {
-  const user = await User.findOne({ email }).select("+resetToken +resetTokenExpiresAt");
+  // Spend one attempt atomically before comparing. Uncapped, a 6-digit code
+  // falls to brute force well inside its 15 minutes; a read-then-write count
+  // would let parallel guesses slip past the cap.
+  const user = await User.findOneAndUpdate(
+    {
+      email,
+      resetTokenExpiresAt: { $gt: new Date() },
+      resetAttempts: { $lt: MAX_RESET_ATTEMPTS },
+    },
+    { $inc: { resetAttempts: 1 } },
+    { new: true }
+  ).select("+resetToken +resetTokenExpiresAt");
 
   // One message for every failure mode, so a wrong code cannot be told apart
   // from an unregistered address.
@@ -142,12 +170,12 @@ const resetPassword = async (
     httpStatus.BAD_REQUEST,
     "That reset code is not valid or has expired. Please request a new one."
   );
-  if (!user || !user.resetToken || user.resetToken !== code) throw invalid;
-  if (!user.resetTokenExpiresAt || user.resetTokenExpiresAt.getTime() < Date.now()) throw invalid;
+  if (!user || !user.resetToken || user.resetToken !== String(code)) throw invalid;
 
   user.password = newPassword; // hashed by the pre-save hook
   user.resetToken = undefined;
   user.resetTokenExpiresAt = undefined;
+  user.resetAttempts = undefined;
   await user.save();
 };
 

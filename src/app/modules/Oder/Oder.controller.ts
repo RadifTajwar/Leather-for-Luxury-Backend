@@ -8,6 +8,7 @@ import { paginationFields } from "../../constants/pagination";
 import pick from "../../shared/pick";
 import { IOrder } from "./Oder.interface";
 import { OrderFilterableFields } from "./Oder.constants";
+import { assertSelfOrAdmin } from "../../middlewares/auth";
 
 const createOder = catchAsync(
   async (req: { body: any }, res: Response<any, Record<string, any>>) => {
@@ -52,6 +53,7 @@ const getSingleOrderById = catchAsync(async (req: Request, res: Response) => {
 });
 const getOrderByUser = catchAsync(async (req: Request, res: Response) => {
   const id = req.params.email;
+  assertSelfOrAdmin(req.user, id);
   const result = await OrderService.getOderByUser(id);
 
   sendResponse(res, {

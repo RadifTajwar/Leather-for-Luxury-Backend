@@ -20,11 +20,15 @@ const UserSchema = new Schema<IUSer, UserModel>(
     // Was declared on IUSer but never on the schema, so verifyEmailService set
     // it and mongoose silently dropped it: verification never persisted.
     isVerified: { type: Boolean, default: false },
-    verificationToken: { type: String },
+    // Hidden like the password: returned in a response, it lets the caller
+    // verify an address without ever reading its mail.
+    verificationToken: { type: String, select: 0 },
     // Password reset. The code is single-use and short lived: without an expiry
     // a leaked mailbox stays a permanent way into the account.
     resetToken: { type: String, select: 0 },
     resetTokenExpiresAt: { type: Date, select: 0 },
+    // Wrong guesses spent on the current reset code (see resetPassword).
+    resetAttempts: { type: Number, select: 0 },
   },
 
   {

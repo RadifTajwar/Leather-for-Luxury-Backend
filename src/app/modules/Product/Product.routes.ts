@@ -8,19 +8,23 @@ import { ENUM_USER_ROLE } from "../../../enums/users";
 
 const router = express.Router();
 
-router.post("/create-product", ProductController.createProduct);
+router.post(
+  "/create-product",
+  auth(ENUM_USER_ROLE.ADMIN),
+  ProductController.createProduct
+);
 router.get("/:slug", ProductController.getSingleProductBySlug);
 router.get("/", ProductController.getAll);
 router.get("/ById/:id", ProductController.getSingleProductById);
 router.get("/product/:id", RatingController.getRatingByProduct);
 router.patch(
   "/update/:id",
-  // auth(ENUM_USER_ROLE.ADMIN),
+  auth(ENUM_USER_ROLE.ADMIN),
   ProductController.updateProductById
 );
 router.delete(
   "/delete/:id",
-  // auth(ENUM_USER_ROLE.ADMIN),
+  auth(ENUM_USER_ROLE.ADMIN),
   ProductController.deleteProduct
 );
 router.post(
