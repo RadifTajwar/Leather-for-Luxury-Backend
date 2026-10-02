@@ -33,6 +33,8 @@ const orderSchema = new Schema<IOrder>(
     status: { type: String, required: true, default: "Pending" },
     totalPrice: { type: Number },
     trackCode: { type: String },
+    // Delivery company that issued trackCode (e.g. "Pathao Courier").
+    courier: { type: String },
 
     dateOrdered: { type: Date, default: Date.now },
   },

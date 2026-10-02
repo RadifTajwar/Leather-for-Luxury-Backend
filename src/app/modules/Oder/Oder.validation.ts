@@ -49,6 +49,7 @@ export const UpdateOrderZodSchema = z.object({
       status: z.string().optional(),
       totalPrice: z.number().optional(),
       trackCode: z.string().optional(),
+      courier: z.string().optional(),
       dateOrdered: z.date().optional(),
     })
     .optional(),

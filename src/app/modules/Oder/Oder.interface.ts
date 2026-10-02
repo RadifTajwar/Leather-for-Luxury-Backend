@@ -17,6 +17,7 @@ export type IOrder = {
   status?: string;
   totalPrice: number;
   trackCode?: string;
+  courier?: string;
   dateOrdered?: Date;
 };
 

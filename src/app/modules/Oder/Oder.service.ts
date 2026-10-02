@@ -8,7 +8,7 @@ import { paginationHelpers } from "../../helpers/paginationHelper";
 import { OrderSearchableFields } from "./Oder.constants";
 import ApiError from "../../errors/ApiError";
 import httpStatus from "http-status";
-import { sendOrderEmail, sendVerificationEmail } from "../../middlewares/email";
+import { sendOrderEmail, sendTrackingEmail } from "../../middlewares/email";
 import { Product } from "../Product/Product.model";
 import { nextOrderNumber } from "./Counter.model";
 
@@ -85,22 +85,29 @@ export const updateOrderId = async (
   id: string,
   payload: Partial<IOrder>
 ): Promise<IOrder | null> => {
-  const { trackCode } = payload;
-
   // Validate the ID format
   if (!mongoose.Types.ObjectId.isValid(id)) {
     throw new Error("Invalid ID format");
   }
 
-  // Find and update the parent category
+  const before = await Order.findById(id);
+
+  // Find and update the order
   const result = await Order.findByIdAndUpdate(id, payload, {
     new: true, // Return the updated document
     runValidators: true, // Enforce schema validations
   });
-  if (result && trackCode) {
-    const idData = result.email;
-    await sendVerificationEmail(idData, trackCode);
-    // Ensure it's a string
+
+  // Mail the customer only when the tracking details actually change: adding
+  // them, or correcting a wrong ID or courier. A status-only save sends nothing.
+  if (
+    result?.trackCode &&
+    (result.trackCode !== before?.trackCode || result.courier !== before?.courier)
+  ) {
+    const products = await Product.find({
+      _id: { $in: result.orderItems.map((item) => item.product) },
+    });
+    await sendTrackingEmail(result, products, Boolean(before?.trackCode));
   }
 
   return result;
