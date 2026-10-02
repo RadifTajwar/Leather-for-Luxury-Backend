@@ -3,6 +3,9 @@ import { IOrder, OderModel } from "./Oder.interface";
 
 const orderSchema = new Schema<IOrder>(
   {
+    // Short, human-facing number. The ObjectId is 24 hex characters, which is
+    // unusable over the phone; this is what staff and customers quote.
+    orderNumber: { type: Number, unique: true, index: true, sparse: true },
     orderItems: [
       {
         quantity: { type: Number, require: [true, "quantity is required"] },

@@ -10,6 +10,7 @@ import ApiError from "../../errors/ApiError";
 import httpStatus from "http-status";
 import { sendOrderEmail, sendVerificationEmail } from "../../middlewares/email";
 import { Product } from "../Product/Product.model";
+import { nextOrderNumber } from "./Counter.model";
 
 const createOder = async (payload: IOrder): Promise<IOrder | null> => {
   // Fetch the products by their IDs
@@ -36,6 +37,7 @@ const createOder = async (payload: IOrder): Promise<IOrder | null> => {
   // Create the order
   const result = await Order.create({
     ...payload,
+    orderNumber: await nextOrderNumber(),
     orderItems: structuredOrderItems,
   });
 
@@ -152,29 +154,27 @@ const getAll = async (
     });
   }
 
-  // Search needs $or for searching in specified fields
+  // Free text search across the string fields, plus an exact hit on the order
+  // number so staff can paste what a customer reads out ("1042" or "#1042").
+  //
+  // The previous version tested `field === "Product" || "User"`, where the bare
+  // "User" is always truthy, so every field went down the $expr branch.
   if (searchTerm) {
-    andConditions.push({
-      $or: OrderSearchableFields.map((field) => {
-        if (field === "Product" || "User") {
-          return {
-            $expr: {
-              $regexMatch: {
-                input: { $toString: `$${field}` },
-                regex: searchTerm,
-                options: "i",
-              },
-            },
-          };
-        }
-        return {
-          [field]: {
-            $regex: searchTerm,
-            $options: "i",
-          },
-        };
-      }),
-    });
+    const term = String(searchTerm).trim();
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const or: Record<string, unknown>[] = OrderSearchableFields.map((field) => ({
+      [field]: { $regex: escaped, $options: "i" },
+    }));
+
+    const asNumber = Number(term.replace(/^#/, ""));
+    if (Number.isInteger(asNumber)) or.push({ orderNumber: asNumber });
+
+    // Let staff paste a full or partial database id too.
+    if (/^[0-9a-f]{6,24}$/i.test(term)) {
+      or.push({ $expr: { $regexMatch: { input: { $toString: "$_id" }, regex: term, options: "i" } } });
+    }
+
+    andConditions.push({ $or: or });
   }
 
   // Filters needs $and to fullfill all the conditions

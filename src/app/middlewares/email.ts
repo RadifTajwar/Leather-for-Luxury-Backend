@@ -1,10 +1,10 @@
 import { IOrder } from "../modules/Oder/Oder.interface";
 import { IProduct } from "../modules/Product/Product.interface";
-import { transporter } from "./email.config";
+import { MAIL_FROM, transporter } from "./email.config";
 import {
+  Password_Reset_Template,
   Verification_Email_Template,
   Verification_User_Template,
-  Welcome_Email_Template,
 } from "./emaleTemplate";
 import { Order_Email_Template } from "./orderEmailTemplate";
 
@@ -14,7 +14,7 @@ export const sendVerificationEmail = async (
 ): Promise<void> => {
   try {
     const response = await transporter.sendMail({
-      from: 'Leather For Luxury""<overseasreshan@gmail.com>',
+      from: MAIL_FROM,
       to: email, // list of receivers
       subject: "Order Track Code", // Subject line
       text: "Order Track Code", // plain text body
@@ -28,30 +28,64 @@ export const sendVerificationEmail = async (
     console.error("Email error:", error);
   }
 };
+/**
+ * Welcome mail carrying the one-time password issued by createUser.
+ * Returns whether it was accepted: the account is unusable without it, so the
+ * caller needs to know, but it must not throw and unwind a created account.
+ */
+/**
+ * Signup verification mail: carries the 6-digit code, never a password.
+ * Returns whether the mail server accepted it. Note that acceptance is not
+ * delivery — a non-existent mailbox is still accepted here and bounces later.
+ */
 export const sendVerificationUser = async (
   email: string,
-  name: string,
-  password: string
-): Promise<void> => {
+  verificationCode: string
+): Promise<boolean> => {
   try {
-    const htmlContent = Welcome_Email_Template
-      .replace("{name}", name)
-      .replace("{password}", password);
-
-    const response = await transporter.sendMail({
-      from: '"Leather For Luxury" <overseasreshan@gmail.com>',
+    await transporter.sendMail({
+      from: MAIL_FROM,
       to: email,
-      subject: "Welcome to Leather For Luxury 🎉",
-      text: `Hello ${name},\n\nThank you for signing up! Here is your password: ${password}`,
-      html: htmlContent,
+      subject: "Verify your email — Leather For Luxury",
+      text: `Your verification code is ${verificationCode}.`,
+      html: Verification_User_Template.replace(
+        /{verificationCode}/g,
+        verificationCode
+      ),
     });
-
-    // console.log("✅ Email sent successfully:", response);
+    return true;
   } catch (error) {
-    console.error("❌ Email error:", error);
+    console.error("Verification email error:", error);
+    return false;
   }
 };
 
+/**
+ * Password reset code. Returns whether the mail server accepted it so the
+ * caller can log a failure; never throws.
+ */
+export const sendPasswordResetEmail = async (
+  email: string,
+  resetCode: string,
+  expiryMinutes: number
+): Promise<boolean> => {
+  try {
+    await transporter.sendMail({
+      from: MAIL_FROM,
+      to: email,
+      subject: "Reset your password — Leather For Luxury",
+      text: `Your password reset code is ${resetCode}. It expires in ${expiryMinutes} minutes.`,
+      html: Password_Reset_Template.replace(/{resetCode}/g, resetCode).replace(
+        /{expiryMinutes}/g,
+        String(expiryMinutes)
+      ),
+    });
+    return true;
+  } catch (error) {
+    console.error("Password reset email error:", error);
+    return false;
+  }
+};
 
 export const sendOrderEmail = async (
   email: string,
@@ -93,7 +127,7 @@ export const sendOrderEmail = async (
 
     // Send the email
     const response = await transporter.sendMail({
-      from: '"Leather For Luxury" <overseasreshan@gmail.com>',
+      from: MAIL_FROM,
       to: email,
       subject: "Order Confirmed",
       text: `Your order has been confirmed! Track Code: ${
@@ -104,8 +138,10 @@ export const sendOrderEmail = async (
 
     // console.log("Email sent successfully:", response);
   } catch (error) {
-    console.error("Email error:", error);
-    throw new Error("Failed to send email");
+    // Never rethrow: the order is already saved by the time this runs, so a
+    // failing mail server would unwind a successful sale into a 500 and the
+    // customer would re-submit. Matches sendVerificationEmail/sendVerificationUser.
+    console.error("Email error (order confirmation not sent):", error);
   }
 };
 

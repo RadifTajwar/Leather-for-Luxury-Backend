@@ -10,7 +10,7 @@ import ApiError from "../../errors/ApiError";
 import { createToken, verifyToken } from "../../helpers/jwtHelpers";
 import config from "../../config";
 import { JwtPayload, Secret } from "jsonwebtoken";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 const loginUser = async (payload: TLoginUser): Promise<ILoginUserResponse> => {
   // checking if the user is exist
@@ -26,8 +26,12 @@ const loginUser = async (payload: TLoginUser): Promise<ILoginUserResponse> => {
   //create token and sent to the  client
 
   const jwtPayload = {
+    id: String((user as any)._id ?? user.id),
     email: user.email,
     role: user.role,
+    // Lets the storefront show the "verify your email" prompt without an extra
+    // round trip. Tokens issued before this field existed simply omit it.
+    isVerified: Boolean(user.isVerified),
   };
 
   const accessToken = createToken(

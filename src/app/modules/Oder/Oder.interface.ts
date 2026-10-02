@@ -1,6 +1,7 @@
 import mongoose, { Model, Types } from "mongoose";
 
 export type IOrder = {
+  orderNumber?: number;
   orderItems: {
     quantity: number;
     product: mongoose.Types.ObjectId;

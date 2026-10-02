@@ -27,7 +27,7 @@ type Leather = {
 
 export type IProduct = {
   _id: mongoose.Types.ObjectId;
-  barcode: string;
+  barcode?: string;
   slug?: string;
   name: string;
   color: Color;

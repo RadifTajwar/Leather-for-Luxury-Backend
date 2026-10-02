@@ -4,7 +4,9 @@ import slugify from "slugify";
 
 const ProductSchema = new Schema<IProduct>(
   {
-    barcode: { type: String, required: true },
+    // Optional: not every product carries one, and the admin form does not
+    // ask for it as a required field.
+    barcode: { type: String },
     slug: { type: String, required: false },
     name: { type: String, required: true },
     color: [

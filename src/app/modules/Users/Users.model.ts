@@ -1,6 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import { IUSer, UserModel } from "./Users.interface";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import config from "../../config";
 import slugify from "slugify";
 
@@ -17,7 +17,14 @@ const UserSchema = new Schema<IUSer, UserModel>(
     phone: { type: String, required: false, select: 0 },
     shippingAddress: { type: String, required: false, select: 0 },
 
+    // Was declared on IUSer but never on the schema, so verifyEmailService set
+    // it and mongoose silently dropped it: verification never persisted.
+    isVerified: { type: Boolean, default: false },
     verificationToken: { type: String },
+    // Password reset. The code is single-use and short lived: without an expiry
+    // a leaked mailbox stays a permanent way into the account.
+    resetToken: { type: String, select: 0 },
+    resetTokenExpiresAt: { type: Date, select: 0 },
   },
 
   {
@@ -25,8 +32,12 @@ const UserSchema = new Schema<IUSer, UserModel>(
   }
 );
 
-UserSchema.pre<IUSer>("save", async function (next) {
-  // hashing user password
+UserSchema.pre("save", async function (next) {
+  // Only hash when the password actually changed. Hashing unconditionally
+  // double-hashed it on any later save() and, because `password` is select:0,
+  // threw "Illegal arguments: undefined" whenever the document was loaded
+  // without it — which is every save from verification or profile updates.
+  if (!this.isModified("password")) return next();
 
   this.password = await bcrypt.hash(
     this.password,

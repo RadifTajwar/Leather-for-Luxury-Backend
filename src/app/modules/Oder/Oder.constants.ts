@@ -6,6 +6,11 @@ export const OrderFilterableFields = [
   "email",
   "startDate",
   "endDate",
+  "orderNumber",
 ];
 
-export const OrderSearchableFields = ["user", "status", "dateOrdered,email"];
+/**
+ * Fields a free-text `searchTerm` is matched against. `orderNumber` is handled
+ * separately in the service because it is numeric, not a regex target.
+ */
+export const OrderSearchableFields = ["email", "name", "phone", "trackCode", "status"];
