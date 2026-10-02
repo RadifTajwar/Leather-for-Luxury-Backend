@@ -6,7 +6,7 @@ import {
   Verification_Email_Template,
   Verification_User_Template,
 } from "./emaleTemplate";
-import { Order_Email_Template } from "./orderEmailTemplate";
+import { renderOrderEmail } from "./orderEmailTemplate";
 
 export const sendVerificationEmail = async (
   email: string,
@@ -93,50 +93,31 @@ export const sendOrderEmail = async (
   structuredOrderItems: IOrder
 ): Promise<void> => {
   try {
-    // Generate the dynamic HTML for the order items
-    const orderItemsHTML = structuredOrderItems.orderItems
-      .map((item) => {
+    const { subject, text, html } = renderOrderEmail({
+      customerName: structuredOrderItems.name,
+      orderNumber: structuredOrderItems.orderNumber,
+      total: structuredOrderItems.totalPrice,
+      lines: structuredOrderItems.orderItems.map((item) => {
         const product = Items.find((p) => p._id.equals(item.product));
-        return `
-          <tr>
-            <td width="20%">
-              <img src="${product?.imageDefault}" alt="${product?.name}" width="90">
-            </td>
-            <td width="60%">
-              <span class="font-weight-bold">${product?.name}</span>
-              <div class="product-qty">
-                <span class="d-block">Quantity: ${item.quantity}</span>
-                <span>Color: ${item.color}</span>
-              </div>
-            </td>
-            <td width="20%">
-              <div class="text-right">
-                <span class="font-weight-bold">$${product?.originalPrice}</span>
-              </div>
-            </td>
-          </tr>
-        `;
-      })
-      .join("");
-
-    // Replace placeholders in the template
-    const emailHTML = Order_Email_Template.replace(
-      "{orderItems}",
-      orderItemsHTML
-    ).replace("{totalPrice}", structuredOrderItems.totalPrice.toFixed(2)); // Use totalPrice from the order
-
-    // Send the email
-    const response = await transporter.sendMail({
-      from: MAIL_FROM,
-      to: email,
-      subject: "Order Confirmed",
-      text: `Your order has been confirmed! Track Code: ${
-        structuredOrderItems.trackCode || "N/A"
-      }`,
-      html: emailHTML, // Final email HTML with the dynamic content
+        return {
+          name: product?.name ?? "Item",
+          color: item.color,
+          quantity: item.quantity,
+          // The storefront charges discountedPrice; show what was charged.
+          unitPrice: Number(product?.discountedPrice ?? product?.originalPrice ?? 0),
+          image: product?.imageDefault,
+        };
+      }),
     });
 
-    // console.log("Email sent successfully:", response);
+    await transporter.sendMail({
+      from: MAIL_FROM,
+      replyTo: MAIL_FROM,
+      to: email,
+      subject,
+      text,
+      html,
+    });
   } catch (error) {
     // Never rethrow: the order is already saved by the time this runs, so a
     // failing mail server would unwind a successful sale into a 500 and the

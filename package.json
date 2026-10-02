@@ -4,7 +4,7 @@
   "main": "src/server.ts",
   "scripts": {
     "start": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "test": "node tests/bcrypt-compat.test.js",
+    "test": "node tests/bcrypt-compat.test.js && node -r ts-node/register/transpile-only tests/order-email.test.js",
     "build": "tsc"
   },
   "author": "webtrb",

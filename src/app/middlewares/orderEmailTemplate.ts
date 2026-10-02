@@ -1,135 +1,134 @@
-export const Order_Email_Template = `
-<!DOCTYPE html>
+/**
+ * Order confirmation email, built to land in the inbox rather than spam:
+ * inline styles only, no external fonts or free image hosts, a plain-text part
+ * that says the same thing as the HTML, and a personal greeting.
+ *
+ * Anyone can place a guest order with any name and any email address, so every
+ * customer-supplied value is escaped: otherwise the store would mail whatever
+ * HTML (or phishing link) an attacker typed into the name field.
+ */
+
+export interface OrderEmailLine {
+  name: string;
+  color?: string;
+  quantity: number;
+  unitPrice: number;
+  image?: string;
+}
+
+export interface OrderEmailInput {
+  customerName?: string;
+  orderNumber?: number;
+  lines: OrderEmailLine[];
+  total: number;
+}
+
+const esc = (value: unknown): string =>
+  String(value ?? "").replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string
+  );
+
+// Same format as the storefront's formatMoney: "৳ 1,234.00".
+const money = (amount: number): string =>
+  `৳ ${(Number.isFinite(amount) ? amount : 0).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+// Letters only: a "name" like http://evil.example must not become a link.
+const firstNameOf = (name?: string): string =>
+  (String(name ?? "").trim().split(/\s+/)[0] ?? "").replace(/[^\p{L}\p{M}'-]/gu, "") ||
+  "there";
+
+// Only our own image CDN; images on free hosts (ImgBB and the like) are a spam signal.
+const safeImage = (url?: string): string | undefined =>
+  url && url.startsWith("https://res.cloudinary.com/") ? url : undefined;
+
+const cell = "border-bottom:1px solid #e7e5e4;vertical-align:top;";
+
+export const renderOrderEmail = ({
+  customerName,
+  orderNumber,
+  lines,
+  total,
+}: OrderEmailInput): { subject: string; text: string; html: string } => {
+  const ref = orderNumber ? ` #${orderNumber}` : "";
+  const firstName = firstNameOf(customerName);
+  const subtotal = lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
+  // The order total is priced by the storefront as items + shipping.
+  const shipping = Math.max(0, Number((total - subtotal).toFixed(2)));
+
+  const subject = `Your Leather For Luxury order${ref} is confirmed`;
+
+  const text = [
+    `Hi ${firstName},`,
+    "",
+    `Thank you for your order${ref}. We have received it and will email you again when it ships.`,
+    "",
+    ...lines.map(
+      (l) =>
+        `- ${l.name}${l.color ? ` (${l.color})` : ""} x ${l.quantity}: ${money(l.unitPrice * l.quantity)}`
+    ),
+    "",
+    `Subtotal: ${money(subtotal)}`,
+    `Shipping: ${money(shipping)}`,
+    `Total: ${money(total)}`,
+    "",
+    "Questions about your order? Just reply to this email.",
+    "",
+    "Leather For Luxury",
+  ].join("\n");
+
+  const rows = lines
+    .map((l) => {
+      const image = safeImage(l.image);
+      return `<tr>
+  <td width="68" style="padding:12px 12px 12px 0;${cell}">${
+    image
+      ? `<img src="${esc(image)}" alt="${esc(l.name)}" width="56" height="56" style="display:block;border-radius:4px;">`
+      : ""
+  }</td>
+  <td style="padding:12px 0;font-size:14px;${cell}">
+    <div style="font-weight:bold;">${esc(l.name)}</div>
+    <div style="color:#78716c;font-size:13px;">${l.color ? `Color: ${esc(l.color)} &middot; ` : ""}Qty: ${Number(l.quantity) || 0}</div>
+  </td>
+  <td align="right" style="padding:12px 0;font-size:14px;white-space:nowrap;${cell}">${money(l.unitPrice * l.quantity)}</td>
+</tr>`;
+    })
+    .join("\n");
+
+  const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Order Confirmation</title>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat&display=swap">
-    <style>
-        body {
-            background-color: #ffe8d2;
-            font-family: 'Montserrat', sans-serif;
-            margin: 0;
-            padding: 0;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 30px;
-        }
-
-        .card {
-            border: none;
-            background-color: white;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            padding: 20px;
-        }
-
-        .logo {
-            background-color: #eeeeeea8;
-            padding: 10px 40px;
-            text-align: left;
-        }
-
-        .invoice {
-            padding: 30px;
-        }
-
-        .product {
-            border-top: 1px solid #ddd;
-            border-bottom: 1px solid #ddd;
-            margin-top: 20px;
-            margin-bottom: 20px;
-        }
-
-        .product table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .product td {
-            padding: 12px;
-            text-align: left;
-        }
-
-        .product img {
-            width: 90px;
-        }
-
-        .logo img {
-            width: 90px;
-        }
-
-        .product-qty span {
-            font-size: 12px;
-            color: #dedbdb;
-        }
-
-        .text-right {
-            text-align: right;
-        }
-
-        .footer {
-            background-color: #eeeeeea8;
-            padding: 15px;
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-        }
-
-        @media (max-width: 768px) {
-            .row {
-                flex-direction: column;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${esc(subject)}</title>
 </head>
-<body>
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-8">
-                <div class="card">
-                    <div class="logo">
-                      <img src="https://i.ibb.co.com/4Zs33Kg/logo.webp" alt="logo" border="0" />
-                    </div>
-                    <div class="invoice">
-                        <h5>Your order is confirmed!</h5>
-                        <span class="font-weight-bold d-block mt-4">Hello, Customer</span>
-                        <span>Your order has been confirmed and will be shipped shortly!</span>
-                        <div class="product">
-                            <table>
-                                <tbody>
-                                    <!-- Order Items Placeholder -->
-                                    {orderItems}
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="total-price">
-    <table width="100%">
-        <tr>
-            <td class="text-right font-weight-bold" style="padding: 20px 0;">Total Price:</td>
-            <td class="text-right font-weight-bold" style="padding: 20px 0;">{totalPrice}</td>
-        </tr>
+<body style="margin:0;padding:0;background-color:#f5f5f4;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f4;">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background-color:#ffffff;border:1px solid #e7e5e4;border-radius:8px;font-family:Arial,Helvetica,sans-serif;color:#1c1917;">
+  <tr><td style="padding:20px 28px;border-bottom:1px solid #e7e5e4;font-size:18px;font-weight:bold;letter-spacing:0.5px;">Leather For Luxury</td></tr>
+  <tr><td style="padding:28px;">
+    <p style="margin:0 0 8px;font-size:20px;font-weight:bold;">Order${esc(ref)} confirmed</p>
+    <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#44403c;">Hi ${esc(firstName)}, thank you for your order. We have received it and will email you again when it ships.</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e7e5e4;">
+${rows}
     </table>
-</div>
-
-                        <p>We will send a shipping confirmation email when the items are shipped!</p>
-                        <p class="font-weight-bold mb-0">Thanks for shopping with us!</p>
-                        <span>Leather For Luxury Team</span>
-                    </div>
-                    <div class="footer">
-                        <span>Need Help? Visit our <a href="#">help center</a></span>
-                        <span>&copy; ${new Date().toLocaleString("default", {
-                          month: "long",
-                        })} ${new Date().getFullYear()}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;font-size:14px;">
+      <tr><td style="padding:4px 0;color:#57534e;">Subtotal</td><td align="right" style="padding:4px 0;">${money(subtotal)}</td></tr>
+      <tr><td style="padding:4px 0;color:#57534e;">Shipping</td><td align="right" style="padding:4px 0;">${money(shipping)}</td></tr>
+      <tr><td style="padding:10px 0 0;font-weight:bold;border-top:1px solid #e7e5e4;">Total</td><td align="right" style="padding:10px 0 0;font-weight:bold;border-top:1px solid #e7e5e4;">${money(total)}</td></tr>
+    </table>
+    <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#57534e;">Questions about your order? Just reply to this email.</p>
+  </td></tr>
+  <tr><td style="padding:16px 28px;border-top:1px solid #e7e5e4;font-size:12px;line-height:1.5;color:#78716c;">You received this email because an order was placed at Leather For Luxury with this address.</td></tr>
+</table>
+</td></tr>
+</table>
 </body>
-</html>
-`;
+</html>`;
+
+  return { subject, text, html };
+};
